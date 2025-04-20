@@ -2,17 +2,14 @@
 
 ## 目的
 
-GASでスクリプトを作成するにあたり複数のプロジェクトを並行して開発したい場合に都度設定していた内容をすぐに使い始めれるようにテンプレート化し開発の効率化を図る
+GAS でスクリプトを作成するにあたり複数のプロジェクトを並行して開発したい場合に都度設定していた内容をすぐに使い始めれるようにテンプレート化し開発の効率化を図る
 
 ## 開発方法
 
 詳細は[Document](https://developers.google.com/apps-script/guides/clasp)を参照
 
-[claspを使ってGoogle Apps Scriptの開発環境を構築してみた | DevelopersIO](https://dev.classmethod.jp/articles/vscode-clasp-setting/)  
-[GASをgit管理したいので、Clasp環境を作る](https://zenn.dev/marusho/scraps/3579309aabf5eb)  
-
-
-
+[clasp を使って Google Apps Script の開発環境を構築してみた | DevelopersIO](https://dev.classmethod.jp/articles/vscode-clasp-setting/)  
+[GAS を git 管理したいので、Clasp 環境を作る](https://zenn.dev/marusho/scraps/3579309aabf5eb)
 
 ### ログイン
 
@@ -20,75 +17,33 @@ GASでスクリプトを作成するにあたり複数のプロジェクトを�
 clasp login
 ```
 
-### 既存スクリプトをcloneする
+### 既存スクリプトを clone する
 
 ```
-clasp clone {scriptId} --rootDir ./src
+clasp clone {scriptId} --rootDir ./projects/project-c
 ```
 
 ### GAS を開く
 
 ```
-clasp open
+clasp open --project ./projects/project-a
 ```
 
-- Staging環境
-  ```
-  yarn open
-  ```
+### スクリプトを push する
 
-- Prod環境
-  ```
-  yarn open:prod
-  ```
-
-### スクリプトをpushする
+GitHub Actions で一括で Push するか以下のコマンドで個別 Push 可能
 
 ```
-clasp push
+cd ./projects/project-a && clasp push && cd ../..
 ```
 
-- Staging環境
-  ```
-  yarn push
-  ```
+### スクリプトを pull する
 
-- Prod環境
-  ```
-  yarn push:prod
-  ```
-
-### スクリプトをpullする
+GitHub Actions で一括で Pull するか以下のコマンドで個別 Pull 可能
 
 ```
-clasp pull
+cd ./projects/project-a && clasp pull && cd ../..
 ```
-
-- Staging環境
-  ```
-  yarn pull
-  ```
-
-- Prod環境
-  ```
-  yarn pull:prod
-  ```
-
-### デプロイをアップデートする(初回は手動でデプロイ要)
-
-```
-clasp deploy
-```
-
-- Staging環境
-  ```
-  yarn deploy
-  ```
-
-- Prod環境
-  ```
-  yarn deploy:prod
-  ```
 
 ### 状況確認
 
