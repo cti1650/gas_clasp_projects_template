@@ -1,0 +1,69 @@
+name: "Clasp Init"
+description: "Clasp Init Action"
+
+inputs:
+  access_token:
+    description: "User Access Token"
+    required: false
+  id_token:
+    description: "User ID Token"
+    required: false
+  refresh_token:
+    description: "User Refresh Token"
+    required: false
+  client_id:
+    description: "User Client ID"
+    required: false
+  client_secret:
+    description: "User Client Secret"
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check Push Secrets
+      id: check-push-secret
+      env:
+        ACCESS_TOKEN: ${{ inputs.access_token }}
+        CLIENT_ID: ${{ inputs.client_id }}
+      run: |
+        interrupt=false
+
+        if [ -z "$ACCESS_TOKEN" ] || [ -z "$CLIENT_ID" ]; then
+          interrupt=true
+        fi
+
+        echo "interrupt=$interrupt" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Generate ~/.clasprc.json
+      if: steps.check-push-secret.outputs.interrupt != 'true'
+      env:
+        ACCESS_TOKEN: ${{ inputs.access_token }}
+        ID_TOKEN: ${{ inputs.id_token }}
+        REFRESH_TOKEN: ${{ inputs.refresh_token }}
+        CLIENT_ID: ${{ inputs.client_id }}
+        CLIENT_SECRET: ${{ inputs.client_secret }}
+      run: |
+        echo '{
+          "token": {
+            "access_token": "'$ACCESS_TOKEN'",
+            "refresh_token": "'$REFRESH_TOKEN'",
+            "scope": "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/service.management https://www.googleapis.com/auth/script.deployments https://www.googleapis.com/auth/logging.read https://www.googleapis.com/auth/script.webapp.deploy https://www.googleapis.com/auth/userinfo.profile openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/drive.metadata.readonly",
+            "token_type": "Bearer",
+            "id_token": "'$ID_TOKEN'",
+            "expiry_date": 1728331650371
+          },
+          "oauth2ClientSettings": {
+            "clientId": "'$CLIENT_ID'",
+            "clientSecret": "'$CLIENT_SECRET'",
+            "redirectUri": "http://localhost"
+          },
+          "isLocalCreds": false
+        }' | if command -v jq > /dev/null; then
+          jq '.' > ~/.clasprc.json
+        else
+          echo "::error::jq is not installed"
+          exit 1
+        fi
+      shell: bash

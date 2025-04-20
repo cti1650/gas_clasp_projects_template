@@ -1,0 +1,60 @@
+name: "Clasp Init"
+description: "Clasp Init Action"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'yarn'
+        cache-dependency-path: '**/yarn.lock'
+
+    - name: Cache Global Packages
+      uses: actions/cache@v4
+      id: cache_global_clasp
+      with:
+        path: |
+          ~/.npm-global
+          ~/.config/clasp
+        key: ${{ runner.os }}-global-clasp-${{ hashFiles('**/package.json') }}
+        restore-keys: |
+          ${{ runner.os }}-global-clasp-
+
+    - name: Setup Global NPM Path
+      run: |
+        mkdir -p ~/.npm-global
+        npm config set prefix '~/.npm-global'
+        echo "PATH=~/.npm-global/bin:$PATH" >> $GITHUB_ENV
+      shell: bash
+
+    - name: Install Clasp
+      if: steps.cache_global_clasp.outputs.cache-hit != 'true'
+      run: |
+        npm install -g @google/clasp
+        which clasp || echo "clasp not found in PATH"
+        echo "Installed clasp version:"
+        clasp --version || echo "Failed to run clasp --version"
+      shell: bash
+
+    - name: Save yarn Cache
+      uses: actions/cache@v4
+      id: cache_yarn_post
+      with:
+        path: ~/.yarn
+        key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-yarn-
+
+    - name: Cache Dependency
+      uses: actions/cache@v4
+      id: cache_dependency
+      with:
+        path: '**/node_modules'
+        key: ${{ runner.os }}-build-${{ hashFiles('yarn.lock') }}
+
+    - name: Install Dependency
+      if: steps.cache_dependency.outputs.cache-hit != 'true'
+      run: yarn install --frozen-lockfile --silent
+      shell: bash

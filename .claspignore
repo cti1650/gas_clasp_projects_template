@@ -1,5 +1,6 @@
 **/**
 !*.js
 !src/*.js
+!projects/**/*.js
 !appsscript.json
 .eslintrc.js

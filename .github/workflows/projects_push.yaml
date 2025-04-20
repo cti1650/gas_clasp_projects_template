@@ -1,0 +1,31 @@
+name: Deploy GAS Projects
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        project:
+          - project-a
+          - project-b
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clasp Init
+        uses: ./.github/actions/clasp_init
+
+      - name: Set up authentication
+        uses: ././github/actions/create_clasprc
+        with:
+          access_token: ${{ secrets.ACCESS_TOKEN }}
+          id_token: ${{ secrets.ID_TOKEN }}
+          refresh_token: ${{ secrets.REFRESH_TOKEN }}
+          client_id: ${{ secrets.CLIENT_ID }}
+          client_secret: ${{ secrets.CLIENT_SECRET }}
+
+      - name: Push project
+        working-directory: projects/${{ matrix.project }}
+        run: clasp push
