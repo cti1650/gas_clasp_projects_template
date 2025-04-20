@@ -1,0 +1,78 @@
+name: "Create PR"
+description: "Create PR Action"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Get Default Branch
+      id: default-branch
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)
+        echo "name=$DEFAULT_BRANCH" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Configure Git
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+      shell: bash
+
+    - name: Create Branch and Commit
+      env:
+        DEFAULT_BRANCH: ${{ steps.default-branch.outputs.name }}
+      run: |
+        TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+        BRANCH_NAME="clasp-pull-$TIMESTAMP"
+        
+        git fetch origin $DEFAULT_BRANCH
+        
+        git checkout -b $BRANCH_NAME origin/$DEFAULT_BRANCH
+        
+        if git status --porcelain | grep .; then
+          git add .
+          git commit -m "Pull latest code from Google Apps Script"
+          
+          echo "Pushing changes to $BRANCH_NAME..."
+          git push -u origin $BRANCH_NAME || {
+            echo "Push failed. Debug info:"
+            git status
+            git branch -vv
+            exit 1
+          }
+          
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+          echo "HAS_CHANGES=true" >> $GITHUB_ENV
+        else
+          echo "No changes detected"
+          echo "HAS_CHANGES=false" >> $GITHUB_ENV
+        fi
+      shell: bash
+
+    - name: Create Pull Request
+      if: env.HAS_CHANGES == 'true'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        DEFAULT_BRANCH: ${{ steps.default-branch.outputs.name }}
+      run: |
+        sleep 5
+        
+        gh pr create \
+          --base $DEFAULT_BRANCH \
+          --head "${{ env.BRANCH_NAME }}" \
+          --title "Pull latest code from Google Apps Script" \
+          --body "Automatically pulled latest code from Google Apps Script
+
+          Changes include:
+          - Latest code from Google Apps Script
+          - Pulled using clasp
+          - Automated by GitHub Actions"
+      shell: bash
+
+    - name: Summary
+      run: |
+        echo "## Clasp Pull Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- Pull Timestamp: $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "- Branch Created: ${{ env.BRANCH_NAME }}" >> $GITHUB_STEP_SUMMARY
+      shell: bash
