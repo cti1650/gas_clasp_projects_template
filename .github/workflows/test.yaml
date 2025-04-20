@@ -1,0 +1,34 @@
+# main、feature、fix以外のブランチにコミットがプッシュされたときにコードのテストを実行するAction
+---
+name: Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches-ignore:
+      - master
+      - main
+      - 'feature/**'
+      - 'fix/**'
+    paths:
+      - 'src/**'
+      - 'test/**'
+      - 'package.json'
+      - 'yarn.lock'
+      - '.github/workflows/deploy.yaml'
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/deploy.yaml

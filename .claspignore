@@ -1,0 +1,5 @@
+**/**
+!*.js
+!src/*.js
+!appsscript.json
+.eslintrc.js
