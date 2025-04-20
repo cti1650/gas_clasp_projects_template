@@ -1,13 +1,18 @@
 name: "Create PR"
 description: "Create PR Action"
 
+inputs:
+  github_token:
+    description: "User GitHub Token"
+    required: false
+
 runs:
   using: "composite"
   steps:
     - name: Get Default Branch
       id: default-branch
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ inputs.github_token }}
       run: |
         DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)
         echo "name=$DEFAULT_BRANCH" >> $GITHUB_OUTPUT
@@ -53,7 +58,7 @@ runs:
     - name: Create Pull Request
       if: env.HAS_CHANGES == 'true'
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
         DEFAULT_BRANCH: ${{ steps.default-branch.outputs.name }}
       run: |
         sleep 5

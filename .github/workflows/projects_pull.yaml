@@ -32,3 +32,5 @@ jobs:
 
       - name: Create PR
         uses: ./.github/actions/create_pr
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
