@@ -18,7 +18,7 @@ jobs:
         uses: ./.github/actions/clasp_init
 
       - name: Set up authentication
-        uses: ././github/actions/create_clasprc
+        uses: ./.github/actions/create_clasprc
         with:
           access_token: ${{ secrets.ACCESS_TOKEN }}
           id_token: ${{ secrets.ID_TOKEN }}
