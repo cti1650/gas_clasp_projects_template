@@ -34,3 +34,4 @@ jobs:
         uses: ./.github/actions/create_pr
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          project: ${{ matrix.project }}

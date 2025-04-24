@@ -5,6 +5,10 @@ inputs:
   github_token:
     description: "User GitHub Token"
     required: false
+  project:
+    description: "Project name"
+    required: false
+    default: "default-project"
 
 runs:
   using: "composite"
@@ -27,9 +31,10 @@ runs:
     - name: Create Branch and Commit
       env:
         DEFAULT_BRANCH: ${{ steps.default-branch.outputs.name }}
+        PROJECT: ${{ inputs.project }}
       run: |
         TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-        BRANCH_NAME="clasp-pull-$TIMESTAMP"
+        BRANCH_NAME="$PROJECT/clasp-pull-$TIMESTAMP"
         
         git fetch origin $DEFAULT_BRANCH
         
@@ -37,7 +42,7 @@ runs:
         
         if git status --porcelain | grep .; then
           git add .
-          git commit -m "Pull latest code from Google Apps Script"
+          git commit -m "Pull latest code from Google Apps Script($PROJECT)"
           
           echo "Pushing changes to $BRANCH_NAME..."
           git push -u origin $BRANCH_NAME || {
@@ -60,14 +65,15 @@ runs:
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
         DEFAULT_BRANCH: ${{ steps.default-branch.outputs.name }}
+        PROJECT: ${{ inputs.project }}
       run: |
         sleep 5
         
         gh pr create \
           --base $DEFAULT_BRANCH \
           --head "${{ env.BRANCH_NAME }}" \
-          --title "Pull latest code from Google Apps Script" \
-          --body "Automatically pulled latest code from Google Apps Script
+          --title "Pull latest code from Google Apps Script($PROJECT)" \
+          --body "Automatically pulled latest code from Google Apps Script($PROJECT)
 
           Changes include:
           - Latest code from Google Apps Script
