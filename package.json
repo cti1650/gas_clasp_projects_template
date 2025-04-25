@@ -7,7 +7,9 @@
     "lint": "eslint \"./projects/**/*.{js,ts}\" --fix --max-warnings 65",
     "format": "prettier --write \"./projects/**/*.{js,ts}\"",
     "prepare": "husky install",
-    "audit-fix": "npx yarn-audit-fix"
+    "audit-fix": "npx yarn-audit-fix",
+    "push-all": "chmod +x ./push-all.sh && ./push-all.sh",
+    "pull-all": "chmod +x ./pull-all.sh && ./pull-all.sh"
   },
   "devDependencies": {
     "@types/google-apps-script": "^1.0.49",

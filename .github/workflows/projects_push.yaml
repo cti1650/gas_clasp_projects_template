@@ -6,11 +6,6 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        project:
-          - project-a
-          - project-b
     steps:
       - uses: actions/checkout@v4
 
@@ -27,5 +22,4 @@ jobs:
           client_secret: ${{ secrets.CLIENT_SECRET }}
 
       - name: Push project
-        working-directory: projects/${{ matrix.project }}
-        run: clasp push
+        run: yarn push-all

@@ -6,11 +6,6 @@ on:
 jobs:
   pull:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        project:
-          - project-a
-          - project-b
     steps:
       - uses: actions/checkout@v4
 
@@ -27,11 +22,10 @@ jobs:
           client_secret: ${{ secrets.CLIENT_SECRET }}
 
       - name: Pull project
-        working-directory: projects/${{ matrix.project }}
-        run: clasp pull
+        run: yarn pull-all
 
       - name: Create PR
         uses: ./.github/actions/create_pr
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          project: ${{ matrix.project }}
+          project: all-projects

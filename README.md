@@ -11,6 +11,18 @@ GAS でスクリプトを作成するにあたり複数のプロジェクトを�
 [clasp を使って Google Apps Script の開発環境を構築してみた | DevelopersIO](https://dev.classmethod.jp/articles/vscode-clasp-setting/)  
 [GAS を git 管理したいので、Clasp 環境を作る](https://zenn.dev/marusho/scraps/3579309aabf5eb)
 
+### 初期設定
+
+```
+yarn install
+```
+
+claspをインストールしていない場合はclaspのインストールが必要
+
+```
+npm install -g @google/clasp
+```
+
 ### ログイン
 
 ```
@@ -31,7 +43,13 @@ clasp open --project ./projects/project-a
 
 ### スクリプトを push する
 
-GitHub Actions で一括で Push するか以下のコマンドで個別 Push 可能
+一括で Push する(GitHub Actions でも実行可能)
+
+```
+yarn push-all
+```
+
+以下のコマンドで個別 Push 可能
 
 ```
 cd ./projects/project-a && clasp push && cd ../..
@@ -39,7 +57,13 @@ cd ./projects/project-a && clasp push && cd ../..
 
 ### スクリプトを pull する
 
-GitHub Actions で一括で Pull するか以下のコマンドで個別 Pull 可能
+一括で Pull する(GitHub Actions でも実行可能)
+
+```
+yarn pull-all
+```
+
+以下のコマンドで個別 Pull 可能
 
 ```
 cd ./projects/project-a && clasp pull && cd ../..
