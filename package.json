@@ -9,6 +9,7 @@
     "prepare": "husky install",
     "audit-fix": "npx yarn-audit-fix",
     "push-all": "chmod +x ./push-all.sh && ./push-all.sh",
+    "push": "chmod +x ./push-updated.sh && ./push-updated.sh",
     "pull-all": "chmod +x ./pull-all.sh && ./pull-all.sh"
   },
   "devDependencies": {
