@@ -3,4 +3,4 @@
 !src/*.js
 !projects/**/*.js
 !appsscript.json
-.eslintrc.js
+eslint.config.js
