@@ -1,3 +1,3 @@
 function myFunction() {
-  console.log("project-b")
+  console.log("project-b");
 }
