@@ -1,0 +1,28 @@
+version: 2
+updates:
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+
+    cooldown:
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+
+    groups:
+      lint-format:
+        patterns:
+          - 'eslint'
+          - 'eslint*'
+          - '@*/eslint*'
+          - 'prettier'
+          - 'prettier*'
+          - '@*/prettier*'
+        update-types:
+          - 'minor'
+          - 'patch'
+
+      others:
+        patterns:
+          - '*'

@@ -6,7 +6,7 @@
     "init-serve": "clasp login --no-localhost",
     "lint": "eslint \"./projects/**/*.{js,ts}\" --fix --max-warnings 65",
     "format": "prettier --write \"./projects/**/*.{js,ts}\"",
-    "prepare": "husky install",
+    "prepare": "simple-git-hooks",
     "audit-fix": "npx yarn-audit-fix",
     "push-all": "chmod +x ./push-all.sh && ./push-all.sh",
     "push": "chmod +x ./push-updated.sh && ./push-updated.sh",
@@ -19,10 +19,13 @@
     "eslint-config-prettier": "^8.5.0",
     "eslint-plugin-googleappsscript": "^1.0.4",
     "eslint-plugin-import": "^2.26.0",
-    "husky": "^8.0.1",
     "lint-staged": "^13.0.3",
     "prettier": "^2.7.1",
+    "simple-git-hooks": "^2.13.1",
     "yarn-audit-fix": "^10.1.1"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "npx lint-staged"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
