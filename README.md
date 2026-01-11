@@ -55,7 +55,23 @@ clasp create --title "Project Name" --rootDir .
 | `yarn push-all` | 全プロジェクトを GAS に push（並列実行） |
 | `yarn push` | 全プロジェクトを GAS に push（並列実行） |
 | `yarn pull-all` | 全プロジェクトを GAS から pull（並列実行） |
+| `yarn pull` | 全プロジェクトを GAS から pull（並列実行） |
+| `yarn clasp list` | 利用可能なプロジェクト一覧を表示 |
 | `clasp open --project ./projects/project-a` | GAS エディタを開く |
+
+### 個別プロジェクトの操作
+
+```bash
+# 利用可能なプロジェクト一覧
+yarn clasp list
+
+# 特定プロジェクトのみ push
+yarn clasp push -p project-a --force
+yarn clasp push -p project-a -p project-b --force
+
+# 特定プロジェクトのみ pull
+yarn clasp pull -p project-a
+```
 
 ### 並列実行オプション
 

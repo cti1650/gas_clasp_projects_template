@@ -14,7 +14,9 @@
     "audit-fix": "npx yarn-audit-fix",
     "push-all": "node scripts/clasp-runner.js push --force",
     "push": "node scripts/clasp-runner.js push --force",
-    "pull-all": "node scripts/clasp-runner.js pull"
+    "pull-all": "node scripts/clasp-runner.js pull",
+    "pull": "node scripts/clasp-runner.js pull",
+    "clasp": "node scripts/clasp-runner.js"
   },
   "devDependencies": {
     "@eslint/compat": "^2.0.0",

@@ -7,7 +7,7 @@ const DEFAULT_CONCURRENCY = 3;
 /**
  * プロジェクトディレクトリを検索
  */
-function findProjects(baseDir) {
+function findProjects(baseDir, filterNames = []) {
   const projects = [];
   const projectsDir = path.join(baseDir, "projects");
 
@@ -24,7 +24,10 @@ function findProjects(baseDir) {
         const fullPath = path.join(dir, entry.name);
         const claspJson = path.join(fullPath, ".clasp.json");
         if (fs.existsSync(claspJson)) {
-          projects.push(fullPath);
+          // フィルタが指定されている場合はマッチするもののみ追加
+          if (filterNames.length === 0 || filterNames.includes(entry.name)) {
+            projects.push(fullPath);
+          }
         } else {
           searchDir(fullPath, depth + 1);
         }
@@ -34,6 +37,14 @@ function findProjects(baseDir) {
 
   searchDir(projectsDir);
   return projects;
+}
+
+/**
+ * 利用可能なプロジェクト一覧を取得
+ */
+function listProjects(baseDir) {
+  const projects = findProjects(baseDir);
+  return projects.map((p) => path.basename(p));
 }
 
 /**
@@ -140,28 +151,38 @@ async function getCurrentBranch() {
 /**
  * 使用方法を表示
  */
-function showUsage() {
+function showUsage(availableProjects = []) {
   console.log(`
-Usage: node scripts/clasp-runner.js <command> [options]
+Usage: node scripts/clasp-runner.js <command> [options] [project...]
 
 Commands:
-  push    Push all projects to GAS
-  pull    Pull all projects from GAS
+  push    Push projects to GAS
+  pull    Pull projects from GAS
+  list    List available projects
 
 Options:
   --force, -f       Force overwrite (push only)
   --jobs, -j <n>    Number of parallel jobs (default: 3)
+  --project, -p <name>  Specify project(s) to process (can be used multiple times)
   --help, -h        Show this help
 
 Environment Variables:
   PARALLEL_JOBS     Number of parallel jobs (default: 3)
 
 Examples:
-  node scripts/clasp-runner.js push
-  node scripts/clasp-runner.js push --force
-  node scripts/clasp-runner.js pull --jobs 5
+  node scripts/clasp-runner.js push                      # Push all projects
+  node scripts/clasp-runner.js push -p project-a         # Push specific project
+  node scripts/clasp-runner.js push -p project-a -p project-b  # Push multiple projects
+  node scripts/clasp-runner.js pull project-a project-b  # Push multiple projects (shorthand)
+  node scripts/clasp-runner.js list                      # List available projects
   PARALLEL_JOBS=4 node scripts/clasp-runner.js push
 `);
+
+  if (availableProjects.length > 0) {
+    console.log("Available projects:");
+    availableProjects.forEach((p) => console.log(`  - ${p}`));
+    console.log("");
+  }
 }
 
 /**
@@ -172,6 +193,7 @@ function parseArgs(args) {
     command: null,
     force: false,
     jobs: parseInt(process.env.PARALLEL_JOBS || DEFAULT_CONCURRENCY, 10),
+    projects: [],
     help: false
   };
 
@@ -184,8 +206,18 @@ function parseArgs(args) {
       result.force = true;
     } else if (arg === "--jobs" || arg === "-j") {
       result.jobs = parseInt(args[++i], 10) || DEFAULT_CONCURRENCY;
-    } else if (!arg.startsWith("-") && !result.command) {
-      result.command = arg;
+    } else if (arg === "--project" || arg === "-p") {
+      const projectName = args[++i];
+      if (projectName && !projectName.startsWith("-")) {
+        result.projects.push(projectName);
+      }
+    } else if (!arg.startsWith("-")) {
+      if (!result.command) {
+        result.command = arg;
+      } else {
+        // コマンド後の引数はプロジェクト名として扱う
+        result.projects.push(arg);
+      }
     }
   }
 
@@ -196,18 +228,31 @@ function parseArgs(args) {
  * メイン
  */
 async function main() {
+  const baseDir = process.cwd();
   const args = parseArgs(process.argv.slice(2));
+  const availableProjects = listProjects(baseDir);
 
   if (args.help || !args.command) {
-    showUsage();
+    showUsage(availableProjects);
     process.exit(args.help ? 0 : 1);
   }
 
   const command = args.command.toLowerCase();
 
+  // list コマンド
+  if (command === "list") {
+    console.log("Available projects:");
+    if (availableProjects.length === 0) {
+      console.log("  No projects found.");
+    } else {
+      availableProjects.forEach((p) => console.log(`  - ${p}`));
+    }
+    process.exit(0);
+  }
+
   if (!["push", "pull"].includes(command)) {
     console.error(`Error: Unknown command '${command}'`);
-    showUsage();
+    showUsage(availableProjects);
     process.exit(1);
   }
 
@@ -221,9 +266,20 @@ async function main() {
     }
   }
 
-  // プロジェクト検索
-  const baseDir = process.cwd();
-  const projects = findProjects(baseDir);
+  // 指定されたプロジェクトの検証
+  if (args.projects.length > 0) {
+    const invalidProjects = args.projects.filter((p) => !availableProjects.includes(p));
+    if (invalidProjects.length > 0) {
+      console.error(`Error: Unknown project(s): ${invalidProjects.join(", ")}`);
+      console.error("");
+      console.error("Available projects:");
+      availableProjects.forEach((p) => console.error(`  - ${p}`));
+      process.exit(1);
+    }
+  }
+
+  // プロジェクト検索（フィルタ適用）
+  const projects = findProjects(baseDir, args.projects);
 
   if (projects.length === 0) {
     console.log("No projects found.");
