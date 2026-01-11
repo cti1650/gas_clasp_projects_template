@@ -15,6 +15,8 @@ gas_clasp_projects_template/
 │   │   └── code.js          # GASコード
 │   └── project-b/
 │       └── ...
+├── scripts/
+│   └── clasp-runner.js      # 並列実行スクリプト
 ├── .github/
 │   ├── actions/             # カスタムGitHub Actions
 │   └── workflows/           # CI/CDワークフロー
@@ -50,10 +52,21 @@ clasp create --title "Project Name" --rootDir .
 
 | コマンド | 説明 |
 |----------|------|
-| `yarn push-all` | 全プロジェクトを GAS に push |
-| `yarn push` | 変更があったプロジェクトのみ push |
-| `yarn pull-all` | 全プロジェクトを GAS から pull |
+| `yarn push-all` | 全プロジェクトを GAS に push（並列実行） |
+| `yarn push` | 全プロジェクトを GAS に push（並列実行） |
+| `yarn pull-all` | 全プロジェクトを GAS から pull（並列実行） |
 | `clasp open --project ./projects/project-a` | GAS エディタを開く |
+
+### 並列実行オプション
+
+```bash
+# 並列数を指定（デフォルト: 3）
+PARALLEL_JOBS=5 yarn push-all
+
+# 直接スクリプトを実行
+node scripts/clasp-runner.js push --jobs 5
+node scripts/clasp-runner.js pull --jobs 2
+```
 
 ## GitHub Actions
 

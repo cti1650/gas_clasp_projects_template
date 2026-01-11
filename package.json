@@ -12,9 +12,9 @@
     "format": "prettier --write \"./projects/**/*.{js,ts}\"",
     "prepare": "simple-git-hooks",
     "audit-fix": "npx yarn-audit-fix",
-    "push-all": "chmod +x ./push-all.sh && ./push-all.sh",
-    "push": "chmod +x ./push-updated.sh && ./push-updated.sh",
-    "pull-all": "chmod +x ./pull-all.sh && ./pull-all.sh"
+    "push-all": "node scripts/clasp-runner.js push --force",
+    "push": "node scripts/clasp-runner.js push --force",
+    "pull-all": "node scripts/clasp-runner.js pull"
   },
   "devDependencies": {
     "@eslint/compat": "^2.0.0",
