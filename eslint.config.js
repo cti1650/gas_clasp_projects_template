@@ -25,7 +25,15 @@ module.exports = [
     rules: {
       "no-unused-vars": "off",
       "no-undef": "off",
-      "no-console": "off"
+      "no-plusplus": "off",
+      "no-param-reassign": "off",
+      "consistent-return": "off",
+      "no-use-before-define": "off",
+      "no-restricted-syntax": "off",
+      "guard-for-in": "off",
+      "no-continue": "off",
+      "no-console": "off",
+      "func-names": "off"
     }
   },
   prettier
