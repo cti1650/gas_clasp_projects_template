@@ -2,6 +2,10 @@
   "name": "gas_clasp_projects_template",
   "version": "0.0.1",
   "description": "",
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "yarn@1.22.22",
   "scripts": {
     "init-serve": "clasp login --no-localhost",
     "lint": "eslint \"./projects/**/*.{js,ts}\" --fix --max-warnings 65",
