@@ -1,1 +1,21 @@
+# Lock files
 *lock*
+package-lock.json
+yarn.lock
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Git
+.git/
+
+# Logs
+*.log
+
+# Cache
+.cache/
+.eslintcache
