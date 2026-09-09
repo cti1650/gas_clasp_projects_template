@@ -1,6 +1,0 @@
-**/**
-!*.js
-!src/*.js
-!projects/**/*.js
-!appsscript.json
-eslint.config.js

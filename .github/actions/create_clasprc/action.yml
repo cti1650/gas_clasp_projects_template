@@ -1,69 +1,70 @@
 name: "Clasp Init"
 description: "Clasp Init Action"
 
+# NOTE: access_token / id_token は受け取らない。
+# clasp (google-auth-library UserRefreshClient) が認証に使うのは
+# client_id / client_secret / refresh_token の3つだけで、
+# access_token は expiry_date: 0 により起動直後に必ず捨てられ、
+# id_token は clasp 側で「リフレッシュ結果の保存先」としてしか参照されないため、
+# どちらもリフレッシュ時に Google から自動で再取得される。
 inputs:
-  access_token:
-    description: "User Access Token"
-    required: false
-  id_token:
-    description: "User ID Token"
-    required: false
   refresh_token:
     description: "User Refresh Token"
-    required: false
+    required: true
   client_id:
     description: "User Client ID"
-    required: false
+    required: true
   client_secret:
     description: "User Client Secret"
-    required: false
+    required: true
 
 runs:
   using: "composite"
   steps:
     - name: Check Push Secrets
-      id: check-push-secret
       env:
-        ACCESS_TOKEN: ${{ inputs.access_token }}
-        CLIENT_ID: ${{ inputs.client_id }}
-      run: |
-        interrupt=false
-
-        if [ -z "$ACCESS_TOKEN" ] || [ -z "$CLIENT_ID" ]; then
-          interrupt=true
-        fi
-
-        echo "interrupt=$interrupt" >> $GITHUB_OUTPUT
-      shell: bash
-
-    - name: Generate ~/.clasprc.json
-      if: steps.check-push-secret.outputs.interrupt != 'true'
-      env:
-        ACCESS_TOKEN: ${{ inputs.access_token }}
-        ID_TOKEN: ${{ inputs.id_token }}
         REFRESH_TOKEN: ${{ inputs.refresh_token }}
         CLIENT_ID: ${{ inputs.client_id }}
         CLIENT_SECRET: ${{ inputs.client_secret }}
       run: |
-        echo '{
-          "token": {
-            "access_token": "'$ACCESS_TOKEN'",
-            "refresh_token": "'$REFRESH_TOKEN'",
-            "scope": "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/service.management https://www.googleapis.com/auth/script.deployments https://www.googleapis.com/auth/logging.read https://www.googleapis.com/auth/script.webapp.deploy https://www.googleapis.com/auth/userinfo.profile openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/drive.metadata.readonly",
-            "token_type": "Bearer",
-            "id_token": "'$ID_TOKEN'",
-            "expiry_date": 1728331650371
-          },
-          "oauth2ClientSettings": {
-            "clientId": "'$CLIENT_ID'",
-            "clientSecret": "'$CLIENT_SECRET'",
-            "redirectUri": "http://localhost"
-          },
-          "isLocalCreds": false
-        }' | if command -v jq > /dev/null; then
-          jq '.' > ~/.clasprc.json
-        else
+        # required: true は composite action では実行時に強制されないため、ここで明示的に検証する
+        missing=()
+        [ -z "$REFRESH_TOKEN" ] && missing+=("REFRESH_TOKEN")
+        [ -z "$CLIENT_ID" ] && missing+=("CLIENT_ID")
+        [ -z "$CLIENT_SECRET" ] && missing+=("CLIENT_SECRET")
+
+        if [ "${#missing[@]}" -gt 0 ]; then
+          echo "::error::Missing required secrets for clasp auth: ${missing[*]}"
+          exit 1
+        fi
+      shell: bash
+
+    - name: Generate ~/.clasprc.json
+      env:
+        REFRESH_TOKEN: ${{ inputs.refresh_token }}
+        CLIENT_ID: ${{ inputs.client_id }}
+        CLIENT_SECRET: ${{ inputs.client_secret }}
+      run: |
+        if ! command -v jq > /dev/null; then
           echo "::error::jq is not installed"
           exit 1
         fi
+
+        jq -n \
+          --arg refreshToken "$REFRESH_TOKEN" \
+          --arg clientId "$CLIENT_ID" \
+          --arg clientSecret "$CLIENT_SECRET" \
+          '{
+            token: {
+              refresh_token: $refreshToken,
+              token_type: "Bearer",
+              expiry_date: 0
+            },
+            oauth2ClientSettings: {
+              clientId: $clientId,
+              clientSecret: $clientSecret,
+              redirectUri: "http://localhost"
+            }
+          }' > ~/.clasprc.json
+        chmod 600 ~/.clasprc.json
       shell: bash

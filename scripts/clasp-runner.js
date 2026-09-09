@@ -1,4 +1,4 @@
-const { spawn } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
@@ -149,6 +149,60 @@ async function getCurrentBranch() {
 }
 
 /**
+ * 現在 clasp にログインしている Google アカウントのメールアドレスを返す（未ログイン時は null）
+ */
+async function getAuthorizedUser() {
+  const result = await runCommand("clasp", ["--json", "show-authorized-user"], process.cwd());
+  if (!result.success) return null;
+  try {
+    const parsed = JSON.parse(result.stdout);
+    return parsed.loggedIn ? parsed.email : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 現在ログイン中の clasp アカウントが project の scriptId にアクセスできるかを
+ * 副作用のない `clasp deployments` で確認する
+ */
+async function hasClaspAccess(project) {
+  const result = await runCommand("clasp", ["deployments"], project);
+  return result.success;
+}
+
+/**
+ * git の未コミット差分から、変更されたファイルのパス一覧を取得する
+ * core.quotePath=false でこのコマンドに限り日本語ファイル名をエスケープさせない
+ */
+function findChangedFiles(baseDir) {
+  const result = spawnSync(
+    "git",
+    ["-c", "core.quotePath=false", "diff", "--name-only", "--diff-filter=d", "HEAD"],
+    { cwd: baseDir, encoding: "utf8" }
+  );
+  if (result.status !== 0) return [];
+  return result.stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+/**
+ * 変更されたファイルを含むプロジェクトディレクトリのみを絞り込む
+ * candidateProjects はネストしない前提（findProjects は最初に見つかった .clasp.json で探索を打ち切るため）
+ */
+function findChangedProjectDirs(baseDir, candidateProjects) {
+  const changedFiles = findChangedFiles(baseDir).map((file) => path.resolve(baseDir, file));
+  return candidateProjects.filter((project) =>
+    changedFiles.some((file) => {
+      const rel = path.relative(project, file);
+      return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+    })
+  );
+}
+
+/**
  * 使用方法を表示
  */
 function showUsage(availableProjects = []) {
@@ -156,9 +210,13 @@ function showUsage(availableProjects = []) {
 Usage: node scripts/clasp-runner.js <command> [options] [project...]
 
 Commands:
-  push    Push projects to GAS
-  pull    Pull projects from GAS
-  list    List available projects
+  push          Push all (or -p filtered) projects to GAS
+  push-updated  Push only projects with uncommitted changes (git diff vs HEAD)
+  pull          Pull projects from GAS
+  list          List available projects
+
+push / push-updated only run against scriptIds the current clasp account can
+access; projects without access are skipped (not treated as a failure).
 
 Options:
   --force, -f       Force overwrite (push only)
@@ -173,6 +231,7 @@ Examples:
   node scripts/clasp-runner.js push                      # Push all projects
   node scripts/clasp-runner.js push -p project-a         # Push specific project
   node scripts/clasp-runner.js push -p project-a -p project-b  # Push multiple projects
+  node scripts/clasp-runner.js push-updated              # Push only changed projects
   node scripts/clasp-runner.js pull project-a project-b  # Push multiple projects (shorthand)
   node scripts/clasp-runner.js list                      # List available projects
   PARALLEL_JOBS=4 node scripts/clasp-runner.js push
@@ -250,14 +309,16 @@ async function main() {
     process.exit(0);
   }
 
-  if (!["push", "pull"].includes(command)) {
+  const isPush = command === "push" || command === "push-updated";
+
+  if (!isPush && command !== "pull") {
     console.error(`Error: Unknown command '${command}'`);
     showUsage(availableProjects);
     process.exit(1);
   }
 
   // ブランチチェック（pushの場合のみ）
-  if (command === "push") {
+  if (isPush) {
     const branch = await getCurrentBranch();
     if (branch !== "master" && branch !== "main") {
       console.error(`Error: Can't push from branch '${branch}'`);
@@ -278,17 +339,58 @@ async function main() {
     }
   }
 
+  // アカウント確認（pushの場合のみ。取り違え防止のため事前にログイン中のアカウントを表示する）
+  if (isPush) {
+    const email = await getAuthorizedUser();
+    if (!email) {
+      console.error(
+        "Error: clasp is not authorized (or not installed / not on PATH). Run `clasp login`."
+      );
+      process.exit(1);
+    }
+    console.log(`clasp account: ${email}`);
+    console.log("");
+  }
+
   // プロジェクト検索（フィルタ適用）
-  const projects = findProjects(baseDir, args.projects);
+  let projects = findProjects(baseDir, args.projects);
+
+  // push-updated は、フィルタ後の候補のうち git 上で変更があるものだけに絞り込む
+  if (command === "push-updated") {
+    projects = findChangedProjectDirs(baseDir, projects);
+  }
 
   if (projects.length === 0) {
-    console.log("No projects found.");
+    console.log(command === "push-updated" ? "No changed projects to push." : "No projects found.");
     process.exit(0);
   }
 
-  // clasp コマンド引数を構築
-  const claspArgs = [command];
-  if (command === "push" && args.force) {
+  // push は、現在ログイン中のアカウントがアクセスできる scriptId のみを対象にする
+  // （1プロジェクトの権限が無くても他は push されるよう、失敗ではなくスキップとして扱う）
+  if (isPush) {
+    const accessChecks = await Promise.all(
+      projects.map(async (project) => ({ project, ok: await hasClaspAccess(project) }))
+    );
+    const inaccessible = accessChecks.filter((r) => !r.ok);
+    inaccessible.forEach((r) => {
+      console.log(
+        `Skipping (current clasp account has no access to this scriptId): ${path.basename(r.project)}`
+      );
+    });
+    projects = accessChecks.filter((r) => r.ok).map((r) => r.project);
+
+    if (projects.length === 0) {
+      console.log("");
+      console.log("No accessible projects to push.");
+      process.exit(0);
+    }
+    console.log("");
+  }
+
+  // clasp コマンド引数を構築（push-updated は clasp 的には push と同じ）
+  const claspSubcommand = command === "push-updated" ? "push" : command;
+  const claspArgs = [claspSubcommand];
+  if (claspSubcommand === "push" && args.force) {
     claspArgs.push("--force");
   }
 
