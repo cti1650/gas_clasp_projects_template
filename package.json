@@ -16,8 +16,11 @@
     "audit-fix": "npm audit fix",
     "push-all": "node scripts/clasp-runner.js push --force",
     "push": "node scripts/clasp-runner.js push-updated --force",
+    "push-dir": "node scripts/clasp-runner.js push-dir --force",
     "pull-all": "node scripts/clasp-runner.js pull",
     "pull": "node scripts/clasp-runner.js pull",
+    "pull-dir": "node scripts/clasp-runner.js pull-dir",
+    "open-dir": "node scripts/clasp-runner.js open-dir",
     "clasp": "node scripts/clasp-runner.js"
   },
   "devDependencies": {
