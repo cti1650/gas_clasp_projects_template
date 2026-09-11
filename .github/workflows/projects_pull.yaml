@@ -24,7 +24,7 @@ jobs:
           client_secret: ${{ secrets.CLIENT_SECRET }}
 
       - name: Pull project
-        run: yarn pull-all
+        run: npm run pull-all
 
       - name: Create PR
         uses: ./.github/actions/create_pr

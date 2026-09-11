@@ -1,2 +1,2 @@
 tasks:
-  - init: yarn global add @google/clasp && yarn init-serve
+  - init: npm install -g @google/clasp && npm run init-serve

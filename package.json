@@ -5,7 +5,6 @@
   "engines": {
     "node": ">=24"
   },
-  "packageManager": "yarn@1.22.22",
   "scripts": {
     "init-serve": "clasp login --no-localhost",
     "lint": "eslint \"./projects/**/*.{js,ts}\" --fix --max-warnings 65",
@@ -14,7 +13,7 @@
     "format:ci": "prettier --check \"./projects/**/*.{js,ts}\"",
     "test": "node --test \"projects/**/*.test.js\"",
     "prepare": "simple-git-hooks",
-    "audit-fix": "npx yarn-audit-fix",
+    "audit-fix": "npm audit fix",
     "push-all": "node scripts/clasp-runner.js push --force",
     "push": "node scripts/clasp-runner.js push-updated --force",
     "pull-all": "node scripts/clasp-runner.js pull",
@@ -35,8 +34,7 @@
     "lint-staged": "^16.2.7",
     "prettier": "^3.8.1",
     "secretlint": "^13.0.5",
-    "simple-git-hooks": "^2.13.1",
-    "yarn-audit-fix": "^10.1.1"
+    "simple-git-hooks": "^2.13.1"
   },
   "simple-git-hooks": {
     "pre-commit": "npx lint-staged",
