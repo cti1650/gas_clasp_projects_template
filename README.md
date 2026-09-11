@@ -30,7 +30,7 @@ gas_clasp_projects_template/
 ## セットアップ
 
 ```bash
-yarn install
+npm install
 npm install -g @google/clasp  # 未インストールの場合
 clasp login
 ```
@@ -56,34 +56,44 @@ clasp create --title "Project Name" --rootDir .
 
 | コマンド | 説明 |
 |----------|------|
-| `yarn push-all` | 全プロジェクトを GAS に push（並列実行） |
-| `yarn push` | **未コミットの変更があるプロジェクトのみ** GAS に push |
-| `yarn pull-all` | 全プロジェクトを GAS から pull（並列実行） |
-| `yarn pull` | 全プロジェクトを GAS から pull（並列実行） |
-| `yarn test` | `code.test.js` のユニットテストを実行 |
-| `yarn lint` / `yarn lint:ci` | ESLint（`lint` は自動修正あり、`lint:ci` はチェックのみ） |
-| `yarn format` / `yarn format:ci` | Prettier（`format` は書き込みあり、`format:ci` はチェックのみ） |
-| `yarn clasp list` | 利用可能なプロジェクト一覧を表示 |
+| `npm run push-all` | 全プロジェクトを GAS に push（並列実行） |
+| `npm run push` | **未コミットの変更があるプロジェクトのみ** GAS に push |
+| `npm run pull-all` | 全プロジェクトを GAS から pull（並列実行） |
+| `npm run pull` | 全プロジェクトを GAS から pull（並列実行） |
+| `npm test` | `code.test.js` のユニットテストを実行 |
+| `npm run lint` / `npm run lint:ci` | ESLint（`lint` は自動修正あり、`lint:ci` はチェックのみ） |
+| `npm run format` / `npm run format:ci` | Prettier（`format` は書き込みあり、`format:ci` はチェックのみ） |
+| `npm run clasp -- list` | 利用可能なプロジェクト一覧を表示 |
 | `clasp open --project ./projects/project-a` | GAS エディタを開く |
 
-push / push-updated（`yarn push`）は、実行前に**現在ログイン中の clasp アカウント**を表示し、
+push / push-updated（`npm run push`）は、実行前に**現在ログイン中の clasp アカウント**を表示し、
 アクセス権のない scriptId は失敗ではなく**スキップ**として扱う（1プロジェクトの権限が無くても他は push される）。
+
+> [!IMPORTANT]
+> `npm run clasp` にオプションを渡す場合は、スクリプト名の直後に **`--` が必須**。
+> `--` を省くと `-p` や `--force` を npm 自身のオプションとして解釈してしまい、
+> **エラーにならずにオプションが欠落したまま実行される**（`--force` が無視される等）。
+>
+> ```bash
+> npm run clasp -- push -p project-a --force   # ✅ 正しく渡る
+> npm run clasp push -p project-a --force      # ❌ push project-a として実行される
+> ```
 
 ### 個別プロジェクトの操作
 
 ```bash
 # 利用可能なプロジェクト一覧
-yarn clasp list
+npm run clasp -- list
 
 # 特定プロジェクトのみ push
-yarn clasp push -p project-a --force
-yarn clasp push -p project-a -p project-b --force
+npm run clasp -- push -p project-a --force
+npm run clasp -- push -p project-a -p project-b --force
 
 # 特定プロジェクトのみ pull
-yarn clasp pull -p project-a
+npm run clasp -- pull -p project-a
 
 # 未コミットの変更があるプロジェクトのみ push（-p でさらに絞り込みも可能）
-yarn clasp push-updated --force
+npm run clasp -- push-updated --force
 ```
 
 ### ローカルテスト
@@ -93,7 +103,7 @@ yarn clasp push-updated --force
 `projects/project-a/code.test.js` をサンプルとして参照すること。
 
 ```bash
-yarn test
+npm test
 ```
 
 テストファイル（`*.test.js`）は各プロジェクトの `.claspignore` に `**/*.test.js` を記載することで
@@ -103,7 +113,7 @@ GAS への push 対象から除外している。
 
 ```bash
 # 並列数を指定（デフォルト: 3）
-PARALLEL_JOBS=5 yarn push-all
+PARALLEL_JOBS=5 npm run push-all
 
 # 直接スクリプトを実行
 node scripts/clasp-runner.js push --jobs 5 --force
@@ -113,7 +123,7 @@ node scripts/clasp-runner.js pull --jobs 2
 
 ## Git フック
 
-`yarn install`（`prepare` スクリプト）で `simple-git-hooks` により以下が自動設定される。
+`npm install`（`prepare` スクリプト）で `simple-git-hooks` により以下が自動設定される。
 
 | フック | 内容 |
 |--------|------|

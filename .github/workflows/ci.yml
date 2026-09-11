@@ -24,16 +24,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version-file: package.json
-          cache: 'yarn'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: npm ci
 
       - name: Run Lint
-        run: yarn lint:ci
+        run: npm run lint:ci
 
       - name: Run Format
-        run: yarn format:ci
+        run: npm run format:ci
 
       - name: Run Tests
-        run: yarn test
+        run: npm test

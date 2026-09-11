@@ -23,4 +23,4 @@ jobs:
           client_secret: ${{ secrets.CLIENT_SECRET }}
 
       - name: Push project
-        run: yarn push-all
+        run: npm run push-all
