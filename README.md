@@ -31,9 +31,15 @@ gas_clasp_projects_template/
 
 ```bash
 npm install
-npm install -g @google/clasp  # 未インストールの場合
+npm install -g @google/clasp@3.4.1  # 未インストールの場合
 clasp login
 ```
+
+GitHub Actions 側は `.github/actions/clasp_init` で clasp を **3.4.1 に固定**している。
+ローカルもバージョンを揃えておくと、CI との挙動差による事故を避けられる。
+
+なお `scripts/clasp-runner.js` は clasp 2.x / 3.x の**双方で動作する**（サブコマンド名の差は
+実行時にバージョンを検出して吸収している）ため、既存環境の clasp が 2.x でもそのまま使える。
 
 ## 新規プロジェクトの追加
 
@@ -54,17 +60,19 @@ clasp create --title "Project Name" --rootDir .
 
 ## コマンド一覧
 
-| コマンド | 説明 |
-|----------|------|
-| `npm run push-all` | 全プロジェクトを GAS に push（並列実行） |
-| `npm run push` | **未コミットの変更があるプロジェクトのみ** GAS に push |
-| `npm run pull-all` | 全プロジェクトを GAS から pull（並列実行） |
-| `npm run pull` | 全プロジェクトを GAS から pull（並列実行） |
-| `npm test` | `code.test.js` のユニットテストを実行 |
-| `npm run lint` / `npm run lint:ci` | ESLint（`lint` は自動修正あり、`lint:ci` はチェックのみ） |
+| コマンド                               | 説明                                                            |
+| -------------------------------------- | --------------------------------------------------------------- |
+| `npm run push-all`                     | 全プロジェクトを GAS に push（並列実行）                        |
+| `npm run push`                         | **未コミットの変更があるプロジェクトのみ** GAS に push          |
+| `npm run pull-all`                     | 全プロジェクトを GAS から pull（並列実行）                      |
+| `npm run pull`                         | 全プロジェクトを GAS から pull（並列実行）                      |
+| `npm run push-dir -- <パス>`           | 指定パス配下のプロジェクトのみ push                             |
+| `npm run pull-dir -- <パス>`           | 指定パス配下のプロジェクトのみ pull                             |
+| `npm run open-dir -- <パス>`           | 指定パス配下のプロジェクトをブラウザで開く                      |
+| `npm test`                             | `code.test.js` のユニットテストを実行                           |
+| `npm run lint` / `npm run lint:ci`     | ESLint（`lint` は自動修正あり、`lint:ci` はチェックのみ）       |
 | `npm run format` / `npm run format:ci` | Prettier（`format` は書き込みあり、`format:ci` はチェックのみ） |
-| `npm run clasp -- list` | 利用可能なプロジェクト一覧を表示 |
-| `clasp open --project ./projects/project-a` | GAS エディタを開く |
+| `npm run clasp -- list`                | 利用可能なプロジェクト一覧を表示                                |
 
 push / push-updated（`npm run push`）は、実行前に**現在ログイン中の clasp アカウント**を表示し、
 アクセス権のない scriptId は失敗ではなく**スキップ**として扱う（1プロジェクトの権限が無くても他は push される）。
@@ -96,6 +104,38 @@ npm run clasp -- pull -p project-a
 npm run clasp -- push-updated --force
 ```
 
+### パス指定での操作（`*-dir`）
+
+`-p <プロジェクト名>` はディレクトリ名の一致で絞り込むため、階層が深くなると同名プロジェクトを
+区別できない。`*-dir` 系は `projects/` からの**相対パス**で対象を解決するため、プロジェクト単体でも
+カテゴリ単位でもまとめて指定できる。
+
+```bash
+# プロジェクト単体
+npm run push-dir -- project-a
+npm run pull-dir -- project-a
+
+# カテゴリを指定すると、その配下の全プロジェクトが対象になる
+npm run push-dir -- corporate-it
+```
+
+指定したパス自身が `.clasp.json` を持つ場合はそれ単体が対象になり、持たない場合は配下を探索して
+見つかった `.clasp.json` をすべて対象にする。
+
+### GAS エディタ / Web App をブラウザで開く
+
+```bash
+npm run open-dir -- project-a            # Apps Script エディタ（既定）
+npm run open-dir -- project-a --script   # 同上（明示指定）
+npm run open-dir -- project-a --webapp   # デプロイ済み Web App
+```
+
+`--webapp` は開くデプロイを対話的に選択するため、**ターミナル（TTY）から実行する必要がある**。
+パイプ経由など TTY でない場合、`--script` は URL の出力にフォールバックし、`--webapp` はエラーになる。
+
+コンテナ（バインド元のスプレッドシート等）を開く `open-container` は `.clasp.json` の `parentId` を
+必要とするが、`clasp clone` は `parentId` を書き込まないため未対応。
+
 ### ローカルテスト
 
 `SpreadsheetApp` 等の GAS グローバルに依存しない純粋関数（文字列整形・フィルタリング等）は、
@@ -125,21 +165,21 @@ node scripts/clasp-runner.js pull --jobs 2
 
 `npm install`（`prepare` スクリプト）で `simple-git-hooks` により以下が自動設定される。
 
-| フック | 内容 |
-|--------|------|
+| フック     | 内容                                                                                                                                      |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | pre-commit | staged ファイルに ESLint / Prettier（`lint-staged`）、[secretlint](https://github.com/secretlint/secretlint) によるシークレット検出を実行 |
-| commit-msg | [commitlint](https://commitlint.js.org/)（`@commitlint/config-conventional`）でコミットメッセージを検証 |
+| commit-msg | [commitlint](https://commitlint.js.org/)（`@commitlint/config-conventional`）でコミットメッセージを検証                                   |
 
 コミットメッセージは `feat: `, `fix: `, `docs: ` 等の [Conventional Commits](https://www.conventionalcommits.org/) 形式に従うこと。
 検出ルールは `.secretlintrc.json`、コミットメッセージ規約は `commitlint.config.js` を参照。
 
 ## GitHub Actions
 
-| ワークフロー | ファイル | 説明 |
-|-------------|----------|------|
-| CI | `ci.yml` | push/PR 時に Lint（チェックのみ）・Format（チェックのみ）・テストを実行 |
-| Deploy | `projects_push.yaml` | 全プロジェクトを GAS に push（手動実行） |
-| Pull | `projects_pull.yaml` | GAS から pull して PR 作成（手動実行） |
+| ワークフロー | ファイル             | 説明                                                                    |
+| ------------ | -------------------- | ----------------------------------------------------------------------- |
+| CI           | `ci.yml`             | push/PR 時に Lint（チェックのみ）・Format（チェックのみ）・テストを実行 |
+| Deploy       | `projects_push.yaml` | 全プロジェクトを GAS に push（手動実行）                                |
+| Pull         | `projects_pull.yaml` | GAS から pull して PR 作成（手動実行）                                  |
 
 ### 実行方法
 
@@ -179,11 +219,11 @@ clasp（google-auth-library の `UserRefreshClient`）が認証に使うのは `
 
 ## トラブルシューティング
 
-| 問題 | 解決方法 |
-|------|----------|
-| clasp login が失敗 | `clasp login --no-localhost` を試す |
-| push/pull でエラー | `clasp login` で再認証、`.clasp.json` の scriptId を確認 |
-| GitHub Actions が失敗 | Secrets の設定を確認、トークン期限切れなら再取得 |
+| 問題                  | 解決方法                                                 |
+| --------------------- | -------------------------------------------------------- |
+| clasp login が失敗    | `clasp login --no-localhost` を試す                      |
+| push/pull でエラー    | `clasp login` で再認証、`.clasp.json` の scriptId を確認 |
+| GitHub Actions が失敗 | Secrets の設定を確認、トークン期限切れなら再取得         |
 
 ## 参考
 

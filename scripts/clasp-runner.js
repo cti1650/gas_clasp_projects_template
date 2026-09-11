@@ -1,5 +1,6 @@
 const { spawn, spawnSync } = require("child_process");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 
 const DEFAULT_CONCURRENCY = 3;
@@ -45,6 +46,45 @@ function findProjects(baseDir, filterNames = []) {
 function listProjects(baseDir) {
   const projects = findProjects(baseDir);
   return projects.map((p) => path.basename(p));
+}
+
+/**
+ * startDir 自身または配下にある .clasp.json のディレクトリをすべて列挙する
+ * startDir 自身が .clasp.json を持つ場合はそれ単体を返し、配下は探索しない。
+ * プロジェクト名ではなくパスで指定できるため、カテゴリ単位の一括指定にも使える
+ */
+function findClaspJsonDirsUnder(startDir) {
+  if (!fs.existsSync(startDir)) return [];
+  if (fs.existsSync(path.join(startDir, ".clasp.json"))) return [startDir];
+
+  const results = [];
+  const queue = [startDir];
+  while (queue.length > 0) {
+    const dir = queue.shift();
+    if (fs.existsSync(path.join(dir, ".clasp.json"))) {
+      results.push(dir);
+      continue;
+    }
+    const subDirs = fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => path.join(dir, entry.name));
+    queue.push(...subDirs);
+  }
+  return results.sort();
+}
+
+/**
+ * clasp を stdio 継承で実行し、終了コードを返す
+ *
+ * stdout を継承するのは、clasp がブラウザ起動や対話プロンプトの可否を
+ * process.stdout.isTTY で判断するため。パイプすると URL を出力するだけで終わる
+ */
+function runClaspInherit(dir, args) {
+  console.log(`Executing clasp ${args.join(" ")} in: ${path.basename(dir)}`);
+  const result = spawnSync("clasp", args, { cwd: dir, stdio: "inherit" });
+  if (result.error) throw result.error;
+  return result.status ?? 1;
 }
 
 /**
@@ -149,17 +189,79 @@ async function getCurrentBranch() {
 }
 
 /**
- * 現在 clasp にログインしている Google アカウントのメールアドレスを返す（未ログイン時は null）
+ * clasp のメジャーバージョンを返す（取得できない場合は null）
+ * サブコマンド名が 2.x と 3.x で異なるため、呼び分けの判定に使う
  */
-async function getAuthorizedUser() {
-  const result = await runCommand("clasp", ["--json", "show-authorized-user"], process.cwd());
-  if (!result.success) return null;
+let claspMajorCache;
+async function getClaspMajorVersion() {
+  if (claspMajorCache !== undefined) return claspMajorCache;
+  const result = await runCommand("clasp", ["--version"], process.cwd());
+  const match = result.success ? result.stdout.match(/(\d+)\./) : null;
+  claspMajorCache = match ? Number(match[1]) : null;
+  return claspMajorCache;
+}
+
+/**
+ * アカウントを特定できなかったが、認証情報自体は存在する場合に返す目印
+ */
+const UNKNOWN_ACCOUNT = Symbol("unknown-account");
+
+/**
+ * JWT（id_token）のペイロードから email を取り出す。検証はせず表示用途にのみ使う
+ */
+function decodeEmailFromIdToken(idToken) {
   try {
-    const parsed = JSON.parse(result.stdout);
-    return parsed.loggedIn ? parsed.email : null;
+    const payload = idToken.split(".")[1];
+    if (!payload) return null;
+    const json = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    return json.email || null;
   } catch {
     return null;
   }
+}
+
+/**
+ * ~/.clasprc.json から認証状態を読む（clasp 2.x には show-authorized-user が無いため）
+ * 認証情報があれば email、email を特定できなければ UNKNOWN_ACCOUNT、無ければ null
+ */
+function readAuthorizedUserFromClasprc() {
+  const clasprcPath = path.join(os.homedir(), ".clasprc.json");
+  if (!fs.existsSync(clasprcPath)) return null;
+
+  try {
+    const store = JSON.parse(fs.readFileSync(clasprcPath, "utf8"));
+    // clasp 2.x（V1形式）と 3.x（tokens 配下）の双方を見る
+    const candidates = [store.token, ...Object.values(store.tokens || {})].filter(Boolean);
+    if (candidates.length === 0) return null;
+
+    for (const token of candidates) {
+      const email = token.id_token && decodeEmailFromIdToken(token.id_token);
+      if (email) return email;
+    }
+    return UNKNOWN_ACCOUNT;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 現在 clasp にログインしている Google アカウントを返す（未ログイン時は null）
+ *
+ * clasp 3.x は show-authorized-user を持つが 2.x には無く、2.x では常に失敗する。
+ * そのため 3.x のコマンドを試したあと ~/.clasprc.json の直接読み取りにフォールバックする。
+ */
+async function getAuthorizedUser() {
+  const result = await runCommand("clasp", ["--json", "show-authorized-user"], process.cwd());
+  if (result.success) {
+    try {
+      const parsed = JSON.parse(result.stdout);
+      if (parsed.loggedIn && parsed.email) return parsed.email;
+      if (parsed.loggedIn) return UNKNOWN_ACCOUNT;
+    } catch {
+      // JSON として読めない場合はフォールバックに回す
+    }
+  }
+  return readAuthorizedUserFromClasprc();
 }
 
 /**
@@ -203,6 +305,88 @@ function findChangedProjectDirs(baseDir, candidateProjects) {
 }
 
 /**
+ * open 系サブコマンドを clasp のメジャーバージョンに合わせて解決する
+ * 2.x: clasp open / clasp open --webapp
+ * 3.x: clasp open-script / clasp open-web-app
+ *
+ * コンテナ（open-container）は .clasp.json の parentId を要求するが、
+ * clasp clone は parentId を書かないため未対応
+ */
+function resolveOpenArgs(target, claspMajor) {
+  if (claspMajor !== null && claspMajor < 3) {
+    return target === "webapp" ? ["open", "--webapp"] : ["open"];
+  }
+  return target === "webapp" ? ["open-web-app"] : ["open-script"];
+}
+
+/**
+ * .clasp.json から scriptId を読めないディレクトリを列挙する
+ *
+ * scriptId が無いと clasp は警告を出しつつ exit 0 で終えることがあるため、
+ * 実行前にこちらで検証して確実に失敗させる
+ */
+function findDirsMissingScriptId(dirs) {
+  return dirs.filter((dir) => {
+    try {
+      return !JSON.parse(fs.readFileSync(path.join(dir, ".clasp.json"), "utf8")).scriptId;
+    } catch {
+      return true;
+    }
+  });
+}
+
+/**
+ * 指定パス配下のプロジェクトをブラウザで開く
+ */
+async function runOpenDir(baseDir, targetPath, target) {
+  const projectsDir = path.join(baseDir, "projects");
+  const claspDirs = findClaspJsonDirsUnder(path.resolve(projectsDir, targetPath));
+
+  if (claspDirs.length === 0) {
+    console.error(`Error: No .clasp.json found in or under: projects/${targetPath}`);
+    process.exit(1);
+  }
+
+  const missingScriptId = findDirsMissingScriptId(claspDirs);
+  if (missingScriptId.length > 0) {
+    console.error("Error: scriptId is missing or .clasp.json is unreadable in:");
+    missingScriptId.forEach((dir) => console.error(`  - ${path.relative(projectsDir, dir)}`));
+    process.exit(1);
+  }
+
+  // clasp はブラウザ起動と対話プロンプトの可否を TTY で判断する。
+  // webapp はデプロイ選択のプロンプトが必要なため、非TTYでは先に失敗させる
+  if (!process.stdout.isTTY) {
+    if (target === "webapp") {
+      console.error(
+        "Error: --webapp needs a TTY to prompt for a deployment. Run this from a terminal."
+      );
+      process.exit(1);
+    }
+    console.warn(
+      "Warning: stdout is not a TTY. clasp will print URLs instead of opening a browser."
+    );
+  }
+
+  const openArgs = resolveOpenArgs(target, await getClaspMajorVersion());
+
+  if (claspDirs.length > 1) {
+    console.log(`Opening ${claspDirs.length} project(s):`);
+    claspDirs.forEach((dir) => console.log(`  - ${path.relative(projectsDir, dir)}`));
+  }
+
+  // 並列化しないのは clasp のブラウザ起動・プロンプトが TTY を要求するため。
+  // 1件の失敗で残りを止めず、最後にまとめて報告する
+  const failures = claspDirs.filter((dir) => runClaspInherit(dir, openArgs) !== 0);
+
+  if (failures.length > 0) {
+    console.error(`clasp ${openArgs.join(" ")} failed in ${failures.length} project(s):`);
+    failures.forEach((dir) => console.error(`  - ${path.relative(projectsDir, dir)}`));
+    process.exit(1);
+  }
+}
+
+/**
  * 使用方法を表示
  */
 function showUsage(availableProjects = []) {
@@ -213,15 +397,23 @@ Commands:
   push          Push all (or -p filtered) projects to GAS
   push-updated  Push only projects with uncommitted changes (git diff vs HEAD)
   pull          Pull projects from GAS
+  push-dir <path>  Push every project under a path (relative to projects/)
+  pull-dir <path>  Pull every project under a path (relative to projects/)
+  open-dir <path>  Open projects under a path in the browser
   list          List available projects
 
-push / push-updated only run against scriptIds the current clasp account can
-access; projects without access are skipped (not treated as a failure).
+push / push-updated / push-dir only run against scriptIds the current clasp
+account can access; projects without access are skipped (not a failure).
+
+*-dir commands resolve by path, so passing a category directory targets every
+project beneath it. Passing a project directory targets just that project.
 
 Options:
   --force, -f       Force overwrite (push only)
   --jobs, -j <n>    Number of parallel jobs (default: 3)
   --project, -p <name>  Specify project(s) to process (can be used multiple times)
+  --script          open-dir: open the Apps Script editor (default)
+  --webapp          open-dir: open the deployed web app (needs a TTY)
   --help, -h        Show this help
 
 Environment Variables:
@@ -233,6 +425,9 @@ Examples:
   node scripts/clasp-runner.js push -p project-a -p project-b  # Push multiple projects
   node scripts/clasp-runner.js push-updated              # Push only changed projects
   node scripts/clasp-runner.js pull project-a project-b  # Push multiple projects (shorthand)
+  node scripts/clasp-runner.js push-dir project-a        # Push one project by path
+  node scripts/clasp-runner.js push-dir corporate-it     # Push every project in a category
+  node scripts/clasp-runner.js open-dir project-a --webapp
   node scripts/clasp-runner.js list                      # List available projects
   PARALLEL_JOBS=4 node scripts/clasp-runner.js push
 `);
@@ -253,6 +448,7 @@ function parseArgs(args) {
     force: false,
     jobs: parseInt(process.env.PARALLEL_JOBS || DEFAULT_CONCURRENCY, 10),
     projects: [],
+    openTarget: null,
     help: false
   };
 
@@ -261,6 +457,10 @@ function parseArgs(args) {
 
     if (arg === "--help" || arg === "-h") {
       result.help = true;
+    } else if (arg === "--script") {
+      result.openTarget = "script";
+    } else if (arg === "--webapp") {
+      result.openTarget = "webapp";
     } else if (arg === "--force" || arg === "-f") {
       result.force = true;
     } else if (arg === "--jobs" || arg === "-j") {
@@ -309,12 +509,39 @@ async function main() {
     process.exit(0);
   }
 
-  const isPush = command === "push" || command === "push-updated";
+  // open-dir はブラウザを開くだけなので、以降の push/pull 用の処理には乗せない
+  if (command === "open-dir") {
+    const targetPath = args.projects[0];
+    if (!targetPath || args.projects.length > 1) {
+      console.error("Usage: npm run open-dir -- <path-under-projects> [--script|--webapp]");
+      process.exit(1);
+    }
+    await runOpenDir(baseDir, targetPath, args.openTarget ?? "script");
+    return;
+  }
 
-  if (!isPush && command !== "pull") {
+  const isDirCommand = command === "push-dir" || command === "pull-dir";
+  const isPush = command === "push" || command === "push-updated" || command === "push-dir";
+
+  if (!isPush && command !== "pull" && command !== "pull-dir") {
     console.error(`Error: Unknown command '${command}'`);
     showUsage(availableProjects);
     process.exit(1);
+  }
+
+  // *-dir はパス1つを必須引数として取る
+  let dirTargets = [];
+  if (isDirCommand) {
+    const targetPath = args.projects[0];
+    if (!targetPath || args.projects.length > 1) {
+      console.error(`Usage: npm run ${command} -- <path-under-projects>`);
+      process.exit(1);
+    }
+    dirTargets = findClaspJsonDirsUnder(path.resolve(baseDir, "projects", targetPath));
+    if (dirTargets.length === 0) {
+      console.error(`Error: No .clasp.json found in or under: projects/${targetPath}`);
+      process.exit(1);
+    }
   }
 
   // ブランチチェック（pushの場合のみ）
@@ -327,8 +554,8 @@ async function main() {
     }
   }
 
-  // 指定されたプロジェクトの検証
-  if (args.projects.length > 0) {
+  // 指定されたプロジェクトの検証（*-dir はパス指定なのでこの検証は行わない）
+  if (!isDirCommand && args.projects.length > 0) {
     const invalidProjects = args.projects.filter((p) => !availableProjects.includes(p));
     if (invalidProjects.length > 0) {
       console.error(`Error: Unknown project(s): ${invalidProjects.join(", ")}`);
@@ -340,20 +567,25 @@ async function main() {
   }
 
   // アカウント確認（pushの場合のみ。取り違え防止のため事前にログイン中のアカウントを表示する）
+  // アカウントを特定できない場合でも push 自体は止めない（認証の失敗は clasp 側が報告する）
   if (isPush) {
-    const email = await getAuthorizedUser();
-    if (!email) {
+    const account = await getAuthorizedUser();
+    if (!account) {
       console.error(
         "Error: clasp is not authorized (or not installed / not on PATH). Run `clasp login`."
       );
       process.exit(1);
     }
-    console.log(`clasp account: ${email}`);
+    if (account === UNKNOWN_ACCOUNT) {
+      console.warn("Warning: clasp credentials found, but the account could not be determined.");
+    } else {
+      console.log(`clasp account: ${account}`);
+    }
     console.log("");
   }
 
-  // プロジェクト検索（フィルタ適用）
-  let projects = findProjects(baseDir, args.projects);
+  // プロジェクト検索（*-dir はパス解決済みの結果を使う）
+  let projects = isDirCommand ? dirTargets : findProjects(baseDir, args.projects);
 
   // push-updated は、フィルタ後の候補のうち git 上で変更があるものだけに絞り込む
   if (command === "push-updated") {
@@ -387,8 +619,8 @@ async function main() {
     console.log("");
   }
 
-  // clasp コマンド引数を構築（push-updated は clasp 的には push と同じ）
-  const claspSubcommand = command === "push-updated" ? "push" : command;
+  // clasp コマンド引数を構築（push-updated / *-dir は clasp 的には push / pull と同じ）
+  const claspSubcommand = isPush ? "push" : "pull";
   const claspArgs = [claspSubcommand];
   if (claspSubcommand === "push" && args.force) {
     claspArgs.push("--force");

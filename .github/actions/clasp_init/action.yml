@@ -4,12 +4,16 @@ description: "Clasp Init Action"
 runs:
   using: "composite"
   steps:
+    - name: Set Clasp Version
+      run: echo "CLASP_VERSION=3.4.1" >> $GITHUB_ENV
+      shell: bash
+
     - name: Setup Node
       uses: actions/setup-node@v4
       with:
         node-version-file: package.json
-        cache: 'npm'
-        cache-dependency-path: '**/package-lock.json'
+        cache: "npm"
+        cache-dependency-path: "**/package-lock.json"
 
     - name: Cache Global Packages
       uses: actions/cache@v4
@@ -17,32 +21,34 @@ runs:
       with:
         path: |
           ~/.npm-global
-          ~/.config/clasp
-        key: ${{ runner.os }}-global-clasp-${{ hashFiles('**/package.json') }}
+        # clasp のバージョンをキーに含め、pin を変更したら確実にキャッシュを再構築させる
+        key: ${{ runner.os }}-global-clasp-${{ env.CLASP_VERSION }}
         restore-keys: |
           ${{ runner.os }}-global-clasp-
 
     - name: Setup Global NPM Path
       run: |
-        mkdir -p ~/.npm-global
-        npm config set prefix '~/.npm-global'
-        echo "PATH=~/.npm-global/bin:$PATH" >> $GITHUB_ENV
+        mkdir -p "$HOME/.npm-global"
+        npm config set prefix "$HOME/.npm-global"
+        # NOTE: 後続の clasp 実行は node の spawn(shell:false) 経由のため、
+        # PATH に "~" を書いてもチルダ展開されず ENOENT になる。$HOME で展開しておく。
+        echo "PATH=$HOME/.npm-global/bin:$PATH" >> $GITHUB_ENV
       shell: bash
 
     - name: Install Clasp
       if: steps.cache_global_clasp.outputs.cache-hit != 'true'
       run: |
-        npm install -g @google/clasp
-        which clasp || echo "clasp not found in PATH"
+        npm install -g @google/clasp@$CLASP_VERSION
+        which clasp || echo "::error::clasp not found in PATH after install"
         echo "Installed clasp version:"
-        clasp --version || echo "Failed to run clasp --version"
+        clasp --version
       shell: bash
 
     - name: Cache Dependency
       uses: actions/cache@v4
       id: cache_dependency
       with:
-        path: '**/node_modules'
+        path: "**/node_modules"
         key: ${{ runner.os }}-build-${{ hashFiles('package-lock.json') }}
 
     - name: Install Dependency
