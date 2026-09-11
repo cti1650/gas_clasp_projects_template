@@ -18,8 +18,6 @@ jobs:
       - name: Set up authentication
         uses: ./.github/actions/create_clasprc
         with:
-          access_token: ${{ secrets.ACCESS_TOKEN }}
-          id_token: ${{ secrets.ID_TOKEN }}
           refresh_token: ${{ secrets.REFRESH_TOKEN }}
           client_id: ${{ secrets.CLIENT_ID }}
           client_secret: ${{ secrets.CLIENT_SECRET }}
