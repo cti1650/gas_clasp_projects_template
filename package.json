@@ -24,19 +24,19 @@
     "clasp": "node scripts/clasp-runner.js"
   },
   "devDependencies": {
-    "@commitlint/cli": "^21.2.2",
+    "@commitlint/cli": "^21.2.3",
     "@commitlint/config-conventional": "^21.2.2",
     "@eslint/compat": "^2.0.2",
-    "@eslint/js": "^9.39.3",
-    "@secretlint/secretlint-rule-preset-recommend": "^13.0.5",
+    "@eslint/js": "^10.0.1",
+    "@secretlint/secretlint-rule-preset-recommend": "^13.0.7",
     "@types/google-apps-script": "^2.0.8",
     "eslint": "^9.39.3",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-googleappsscript": "^1.0.5",
-    "globals": "^17.1.0",
-    "lint-staged": "^16.2.7",
+    "globals": "^17.13.0",
+    "lint-staged": "^17.5.1",
     "prettier": "^3.8.1",
-    "secretlint": "^13.0.5",
+    "secretlint": "^13.0.7",
     "simple-git-hooks": "^2.13.1"
   },
   "simple-git-hooks": {
